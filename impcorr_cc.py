@@ -4,16 +4,18 @@ import pandas as pd
 
 class impcorr_cc:
 
-    def __init__(self, yj, yk, lbls = list()):
+    def __init__(self, label_data, lbls = list()):
         """
-        Use the "order" object for the sklearn module: ClassifierChain(base_lr, order=order, random_state=0) 
+        For the "order" object for the sklearn module: ClassifierChain(base_lr, order=order, random_state=0) 
         """
-        self.label_data = lbls
+        
+        self.label_data = label_data
+        self.lbls = lbls
 
-        self.isu_mtrx = np.empty([len(lbls), len(lbls)])
+        self.isu_mtrx = np.empty([len(self.lbls), len(self.lbls)])
 
-        for n, j in enumerate(lbls):
-            for m, k in enumerate(lbls):
+        for n, j in enumerate(self.lbls):
+            for m, k in enumerate(self.lbls):
                 #print(n,m)
                 if j != k:
                     #print(j,k)
@@ -21,7 +23,7 @@ class impcorr_cc:
                 else:
                     self.isu_mtrx[n][m] = 0
         
-        self.order = self.determine_label_order(self.label_data, self.isu_mtrx)
+        self.order = self.determine_label_order(self.lbls, self.isu_mtrx)
 
 
     def shannon_entropy(self, prob) -> float:

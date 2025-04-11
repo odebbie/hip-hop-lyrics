@@ -1,4 +1,4 @@
-import encodeLyrics
+from encodeLyrics import encodeLyrics
 import pandas as pd
 import numpy as np
 
@@ -6,13 +6,16 @@ import argparse
 from argparse import ArgumentParser
 import os
 import json
+import csv
 
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import hamming_loss, f1_score, precision_recall, accuracy_score
+from sklearn.metrics import hamming_loss, f1_score, precision_score, accuracy_score, recall_score
 
 #load data
-data = pd.read_json('cleaned_lyrics.json')
-label_data = pd.read_csv("random_samples.csv")
+data = pd.read_json(f'/cleaned_lyrics.json',
+                    orient='records', lines=True, encoding="utf-8")
+
+label_data = pd.read_csv(f"/random_samples.csv", encoding="utf-8")
 
 # Sentences we want sentence embeddings for
 sentences = list(data[data['id'].isin(label_data['id'])]['cleaned_lyrics']) #subset for the indices that are labelled
@@ -21,7 +24,7 @@ lyrics = encodeLyrics(sentences) #tensors: lyrics.sentence_embeddings; embed eve
 
 #training data
 X = lyrics.sentence_embeddings
-y = label_data.iloc[:,3:]
+y = label_data.iloc[:,3:11]
 
 X_train, X_test, y_train, y_test= train_test_split(X, y, test_size=0.33, random_state=42)
 
@@ -38,7 +41,7 @@ def main():
                         default='BR')
 
     parser.add_argument("--ordering", 
-                        help="ordering method. options: default, random, impcorr",
+                        help="ordering method. options: random, ensemble, impcorr",
                         type=str,
                         required=False,
                         default='random') 
@@ -54,7 +57,7 @@ def main():
         classifier.fit(X_train, y_train) # Train
 
         #return evaluation metrics
-        model_update(classifier, models_dct, f"BR")
+        model_update(classifier, f"BR")
 
     elif args.classifier == 'CC':
         from sklearn.linear_model import LogisticRegression
@@ -63,36 +66,80 @@ def main():
         base_lr = LogisticRegression(solver='lbfgs', random_state=0)
 
         if args.ordering == 'random':
-            chain = ClassifierChain(base_lr, order=args.ordering, random_state=0)
+            chain = ClassifierChain(base_lr, order='random', random_state=0)
+            chain.fit(X_train, y_train)
+            model_update(chain, f"CC with {args.ordering} ordering")
 
-        elif args.ordering == 'impcorr' 
-            import impcorr_cc
+        elif args.ordering == 'impcorr': 
+            from impcorr_cc import impcorr_cc
 
-            ordering = impcorr_cc(lbls = list(label_data.columns[3:]))
-            chain = ClassifierChain(base_lr, order=ordering, random_state=0)
+            ordering = impcorr_cc(label_data, lbls = list(label_data.columns[3:11]))
 
-        #return evaluation metrics
-        model_update(chain, models_dct, f"CC with {args.ordering} ordering")
+            chain = ClassifierChain(base_lr, order=ordering.order, random_state=0)
+            chain.fit(X_train, y_train)
 
-def model_update(model, dct, model_type):
+            #return evaluation metrics
+            model_update(chain, f"CC with {args.ordering} ordering")
+
+        elif args.ordering == 'ensemble':
+            from sklearn.multioutput import ClassifierChain
+            from sklearn.metrics import jaccard_score
+
+            chains = [ClassifierChain(base_lr, order="random", random_state=i) for i in range(10)]
+            for i, chain in enumerate(chains):
+                chain.fit(X_train, y_train)
+                model_update(chain, f"CC with random {i} ordering")
+
+            Y_pred_chains = np.array([chain.predict_proba(X_test) for chain in chains])
+
+            #Y_pred_ensemble = Y_pred_chains.mean(axis=0)
+            #ensemble_jaccard_score = jaccard_score(
+            #    y_test, Y_pred_ensemble >= 0.5, average="samples"
+            #)
+
+            #model_update(chain, f"CC with {args.ordering} ordering")
+    elif args.classifier == "LP":
+        from skmultilearn.problem_transform import LabelPowerset
+        from sklearn.ensemble import RandomForestClassifier
+
+        # initialize LabelPowerset multi-label classifier with a RandomForest
+        classifier = LabelPowerset(
+            classifier = RandomForestClassifier(n_estimators=100),
+            require_dense = [False, True]
+        )
+        # train
+        classifier.fit(X_train, y_train)
+        model_update(classifier, f"LP")
+
+       
+
+def model_update(model, model_type):
 
     """
-    This function takes in a fitted model, dictionary, and descirpition of the model.
-    It returns an updated dictonary that will later be used to evaluate model results.
+    Add a row to a JSON file with model information.
     """
 
+    
     y_pred = model.predict(X_test)
     ham_loss = hamming_loss(y_test, y_pred)
     f1 = f1_score(y_test, y_pred, average=None)
-    prec = precision_recall(y_test, y_pred, average=None)
-    acc = accuracy_score(y_test, y_pred, average=None)
+    prec = precision_score(y_test, y_pred, average=None, zero_division=np.nan)
+    recall = recall_score(y_test, y_pred, average=None)
+    acc = accuracy_score(y_test, y_pred)
+
+    print("Hamming Loss: ", ham_loss,
+          "\nF1: ", f1,
+          "\nPrecision: ", prec,
+          "\nRecall: ", recall,
+          "\nAccuracy: ",acc)
 
     models_dct = {'model': model_type,
                 'predictions': y_pred,
                 'hamming_loss': ham_loss,
                 'f1_raw': f1,
                 'precision': prec,
-                'accuracy': acc}
+                'accuracy': acc,
+                'recall': recall}
 
     with open('model_outputs.json', 'a') as json_file:
         json.dump(models_dct, json_file)
