@@ -15,7 +15,18 @@ class songInfo(BaseModel):
   #main: str
   #title: str
   summary: str
-  classification: list[str]
+  party: bool
+  substance_use: bool
+  sex: bool
+  romance: bool
+  braggadocio: bool
+  street_culture: bool
+  humor: bool
+  social_consciousness: bool
+  introspection: bool
+  NA: bool
+  #classifications: list[str]
+
 
 for i in data:
 
@@ -23,13 +34,13 @@ for i in data:
         model='lyrics-class',
         messages=[
         {"role": "user", "content": samples[9]['lyrics']},
-        {"role": "assistant", "content": "{summary: 'talks about a woman who has a bodacious butt', classifications: [party, sex]}" },
+        {"role": "assistant", "content": "{summary: 'talks about a woman who has a bodacious butt', party: True, substance_use: False, sex: True, romance: False, braggadocio: False, street_culture: False, humor: False, social_consciousness: False, introspection: False}" },
         {"role": "user", "content": samples[35]['lyrics']},
-        {"role": "assistant", "content": "{summary: 'expresses longing for his romantic partner by showing that he is constantly daydreaming about her', classifications: [romance]}"},
+        {"role": "assistant", "content": "{summary: 'expresses longing for his romantic partner by showing that he is constantly daydreaming about her', party: False, substance_use: False, sex: False, romance: True, braggadocio: False, street_culture: False, humor: False, social_consciousness: False, introspection: False}"},
         {"role": "user", "content": samples[51]['lyrics']},
-        {"role": "assistant", "content": "{summary: 'tells a story about a kid losing his life because he got involved with gangs', classifications: [street_culture, social_consciousness]}"},
+        {"role": "assistant", "content": "{summary: 'tells a story about a kid losing his life because he got involved with gangs', party: False, substance_use: False, sex: False, romance: False, braggadocio: False, street_culture: True, humor: False, social_consciousness: True, introspection: False}"},
         {"role": "user", "content": samples[48]['lyrics']},
-        {"role": "assistant", "content": "{summary: 'describes his experience with being betrayed by friends, family and lovers. reflects on his past struggles', classifications: [introspection]}"},
+        {"role": "assistant", "content": "{summary: 'describes his experience with being betrayed by friends, family and lovers. reflects on his past struggles', party: False, substance_use: False, sex: False, romance: False, braggadocio: False, street_culture: False, humor: False, social_consciousness: False, introspection: True}"},
         {'role': 'user', 'content': i['cleaned_lyrics']}
     ],
         stream=False,
@@ -37,9 +48,12 @@ for i in data:
         options={'temperature': 0.75}
     )
 
+    #print(response.message.content)
+
     try:
-        d = songInfo.model_validate_json(response.message.content)
-        d =  ast.literal_eval(response.message.content) #ValidationError
+        songInfo.model_validate_json(response.message.content) #throws ValidationError if bad
+        #d = ast.literal_eval(response.message.content) #doesnt handle the dictionary string very well
+        d = json.loads(response.message.content)
         d['id'] = i['id']
         d['title'] = i['title']
 
@@ -49,7 +63,7 @@ for i in data:
 
         print("Saved: ", i['id'])
 
-    except:
-        print("Unable to save: ", i['id'])
+    except Exception as e:
+        print("Unable to save: ", i['id'], "\n Error: ", e)
         continue
 
