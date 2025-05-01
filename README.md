@@ -1,3 +1,4 @@
 There is no question of hip hop's capacity to generate controversy—its themes range from raunchy descriptions of sex to commentary on mass incarceration—but whether the themes changed at a specific moment is up for debate. Many fans of the genre look to the 1990s as a concrete moment for the thematic change in the genre, while others argue that the genre has always been full of “pureile” content. Prior research approached an understanding of this change, but lacked a framework to analyze how “introspection” functions in the genre and focused only on 1979 to 1995. This project updates prior work and performs this analysis at scale using machine-learning methods. Its key findings are that the distribution of themes in rap has not changed over time and that the dominant rap ethos is braggadocious, a category that ranges from flashy to empowering lyrics.
 Keywords---rap music history, classification, transformers
+
 [View the poster here](poster.pdf)
